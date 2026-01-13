@@ -30,12 +30,13 @@ public class Injector {
     }
 
     public Object getInstance(Class<?> interfaceClazz) {
-        if (!interfaceClazz.isAnnotationPresent(Component.class)) {
+        Class<?> clazz = findImpl(interfaceClazz);
+
+        if (!clazz.isAnnotationPresent(Component.class)) {
             throw new RuntimeException("Can't create instance of this class "
-                    + interfaceClazz.getName());
+                    + clazz.getName());
         }
 
-        Class<?> clazz = findImpl(interfaceClazz);
         Object clazzImplInstance = createNewInstance(clazz);
 
         Field[] declaredFields = clazz.getDeclaredFields();
