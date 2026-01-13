@@ -2,7 +2,6 @@ package mate.academy.lib;
 
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
-import java.lang.reflect.InvocationTargetException;
 import java.util.HashMap;
 import java.util.Map;
 import mate.academy.service.FileReaderService;
@@ -14,7 +13,17 @@ import mate.academy.service.impl.ProductServiceImpl;
 
 public class Injector {
     private static final Injector injector = new Injector();
-    private Map<Class<?>, Object> instances = new HashMap<>();
+
+    private static final Map<Class<?>, Class<?>> INTERFACE_IMPL = Map.of(
+            FileReaderService.class, FileReaderServiceImpl.class,
+            ProductParser.class, ProductParserImpl.class,
+            ProductService.class, ProductServiceImpl.class
+    );
+
+    private final Map<Class<?>, Object> instances = new HashMap<>();
+
+    private Injector() {
+    }
 
     public static Injector getInjector() {
         return injector;
@@ -22,28 +31,28 @@ public class Injector {
 
     public Object getInstance(Class<?> interfaceClazz) {
         if (!interfaceClazz.isAnnotationPresent(Component.class)) {
-            throw new RuntimeException("Can't create instance of this class");
+            throw new RuntimeException("Can't create instance of this class "
+                    + interfaceClazz.getName());
         }
-        Object clazzImplInstance = null;
+
         Class<?> clazz = findImpl(interfaceClazz);
-        Field[] declaredFields = interfaceClazz.getDeclaredFields();
-        for (Field field: declaredFields) {
+        Object clazzImplInstance = createNewInstance(clazz);
+
+        Field[] declaredFields = clazz.getDeclaredFields();
+        for (Field field : declaredFields) {
             if (field.isAnnotationPresent(Inject.class)) {
                 Object fieldInstance = getInstance(field.getType());
-                clazzImplInstance = createNewInstance(clazz);
                 try {
                     field.setAccessible(true);
                     field.set(clazzImplInstance, fieldInstance);
                 } catch (IllegalAccessException e) {
                     throw new RuntimeException("Can't initialize field value. "
-                            + "Class; " +clazz.getName() + ". Field: "
-                                + field.getName(), e);
+                            + "Class: " + clazz.getName()
+                            + ". Field: " + field.getName(), e);
                 }
             }
         }
-        if (clazzImplInstance == null) {
-            clazzImplInstance = createNewInstance(clazz);
-        }
+
         return clazzImplInstance;
     }
 
@@ -56,20 +65,15 @@ public class Injector {
             Object instance = constructor.newInstance();
             instances.put(clazz, instance);
             return instance;
-        } catch (NoSuchMethodException | InstantiationException
-                 | IllegalAccessException | InvocationTargetException e) {
+        } catch (ReflectiveOperationException e) {
             throw new RuntimeException("Can't create a new instance of "
                     + clazz.getName(), e);
         }
     }
 
     private Class<?> findImpl(Class<?> interfaceClazz) {
-        Map<Class<?>, Class<?>> interfaceImpl = new HashMap<>();
-        interfaceImpl.put(FileReaderService.class, FileReaderServiceImpl.class);
-        interfaceImpl.put(ProductParser.class, ProductParserImpl.class);
-        interfaceImpl.put(ProductService.class, ProductServiceImpl.class);
         if (interfaceClazz.isInterface()) {
-            return interfaceImpl.get(interfaceClazz);
+            return INTERFACE_IMPL.get(interfaceClazz);
         }
         return interfaceClazz;
     }
